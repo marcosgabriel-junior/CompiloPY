@@ -1,7 +1,7 @@
 import sys
 import os
 
-# Este bloco de código adiciona a pasta 'libs' ao caminho de busca para verificar as bibliotecas.
+# Este bloco de código adiciona a pasta 'libs' ao caminho de busca para verificar as bibliotecas e salvar essa droga.
 script_dir = os.path.dirname(os.path.abspath(__file__))
 libs_dir = os.path.join(script_dir, 'libs')
 sys.path.insert(0, libs_dir)
@@ -11,7 +11,7 @@ from tkinter import ttk, messagebox
 import math
 from PIL import Image, ImageTk
 
-# --- MELHORIA DE DESIGN: WIDGET DE TEXTO COM NÚMEROS DE LINHA ---
+# --- TEXTO COM NÚMEROS DE LINHA ---
 class TextWithLineNumbers(tk.Frame):
     def __init__(self, *args, **kwargs):
         tk.Frame.__init__(self, *args, **kwargs)
@@ -50,7 +50,8 @@ class MiniCompilador:
         self.root = root
         self.janela_principal = janela_principal
         self.root.title("Compilo Python - Interpretador")
-        self.root.geometry("800x600")
+        # ALTERADO: Aumentei a largura da janela
+        self.root.geometry("1100x600")
         self.root.configure(bg="#e0e0e0")
         if icon_photo:
             self.root.iconphoto(False, icon_photo)
@@ -77,20 +78,21 @@ class MiniCompilador:
         ttk.Label(codigo_frame, text="Código Fonte").pack(anchor="w", padx=5, pady=(0,2))
         self.codigo_area = TextWithLineNumbers(codigo_frame)
         self.codigo_area.pack(fill="both", expand=True)
-        paned_window.add(codigo_frame, weight=1) # Define o peso inicial para o painel de código
+        paned_window.add(codigo_frame, weight=1) 
         
         # Painel da Direita (Saída)
-        saida_frame = ttk.Frame(paned_window, width=400, height=500)
+        saida_frame = ttk.Frame(paned_window, width=400, height=600)
         ttk.Label(saida_frame, text="Saída").pack(anchor="w", padx=5, pady=(0,2))
         self.saida_area = tk.Text(saida_frame, state="disabled", bg="#2b2b2b", fg="#d0d0d0", font=("Consolas", 11), wrap="word", borderwidth=0)
         self.saida_area.pack(fill="both", expand=True)
-        paned_window.add(saida_frame, weight=2) # Define o peso inicial (maior) para o painel de saída
+        # ALTERADO: Aumentei o peso para dar ainda mais espaço inicial à saída
+        paned_window.add(saida_frame, weight=0) 
         
-        self.saida_area.tag_config("sucesso", foreground="#4CAF50") # Verde
-        self.saida_area.tag_config("erro", foreground="#F44336")   # Vermelho
-        self.saida_area.tag_config("info", foreground="#2196F3")   # Azul
+        self.saida_area.tag_config("sucesso", foreground="#4CAF50") 
+        self.saida_area.tag_config("erro", foreground="#F44336") 
+        self.saida_area.tag_config("info", foreground="#2196F3")   
 
-        # TEXTO DE EXEMPLO PRESERVADO
+        # TEXTO DE EXEMPLo
         self.codigo_area.insert("1.0",
 """# Comandos de exemplo (válidos)
 -Constantes (4 comandos)
@@ -314,8 +316,9 @@ isnan
                     self.saida_area.insert(tk.END, f"{min(nums)}\n", "sucesso")
                 else:
                     self.saida_area.insert(tk.END, f"Comando não reconhecido: {linha}\n", "erro")
+            
             except IndexError:
-                self.saida_area.insert(tk.END, f"Erro em '{linha}': Argumento(s) ausente(s).\n", "erro")
+                self.saida_area.insert(tk.END, f"Erro em '{linha}': Por favor, insira o(s) valor(es) para o comando.\n", "erro")
             except ValueError:
                 self.saida_area.insert(tk.END, f"Erro em '{linha}': Argumento inválido. Verifique se os números estão corretos.\n", "erro")
             except Exception as e:
