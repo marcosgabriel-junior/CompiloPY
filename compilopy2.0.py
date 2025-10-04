@@ -1,75 +1,152 @@
 import sys
 import os
 
-# --- INÍCIO DA MODIFICAÇÃO ---
-# Este bloco de código adiciona a pasta 'libs' ao caminho de busca para verificar as bibliotecas, não coloquei uma env pq tinha preguiça.
+# Este bloco de código adiciona a pasta 'libs' ao caminho de busca para verificar as bibliotecas.
 script_dir = os.path.dirname(os.path.abspath(__file__))
 libs_dir = os.path.join(script_dir, 'libs')
 sys.path.insert(0, libs_dir)
-# --- FIM ---
 
 import tkinter as tk
 from tkinter import ttk, messagebox
 import math
 from PIL import Image, ImageTk
 
+# --- MELHORIA DE DESIGN: WIDGET DE TEXTO COM NÚMEROS DE LINHA ---
+class TextWithLineNumbers(tk.Frame):
+    def __init__(self, *args, **kwargs):
+        tk.Frame.__init__(self, *args, **kwargs)
+        self.text = tk.Text(self, font=("Consolas", 11), wrap="word", borderwidth=0, highlightthickness=0)
+        self.linenumbers = tk.Canvas(self, width=40, bg='#f0f0f0', borderwidth=0, highlightthickness=0)
+        
+        self.linenumbers.pack(side="left", fill="y")
+        self.text.pack(side="right", fill="both", expand=True)
+        
+        self.text.bind("<<Modified>>", self._on_text_modify)
+        self.text.bind("<Configure>", self._on_text_modify)
+
+    def _on_text_modify(self, event=None):
+        self.linenumbers.delete("all")
+        i = self.text.index("@0,0")
+        while True :
+            dline= self.text.dlineinfo(i)
+            if dline is None: break
+            y = dline[1]
+            linenum = str(i).split(".")[0]
+            self.linenumbers.create_text(2, y, anchor="nw", text=linenum, fill="#606060", font=("Consolas", 11))
+            i = self.text.index("%s+1line" % i)
+        self.text.edit_modified(False)
+
+    def get(self, *args, **kwargs):
+        return self.text.get(*args, **kwargs)
+
+    def insert(self, *args, **kwargs):
+        self.text.insert(*args, **kwargs)
+    
+    def delete(self, *args, **kwargs):
+        self.text.delete(*args, **kwargs)
+
 class MiniCompilador:
-    def __init__(self, root, janela_principal):
+    def __init__(self, root, janela_principal, icon_photo):
         self.root = root
         self.janela_principal = janela_principal
         self.root.title("Compilo Python - Interpretador")
-        self.root.geometry("700x600")
+        self.root.geometry("800x600")
+        self.root.configure(bg="#e0e0e0")
+        if icon_photo:
+            self.root.iconphoto(False, icon_photo)
 
-        self.codigo_area = tk.Text(root, height=18, font=("Consolas", 10))
-        self.codigo_area.insert("1.0",
-"""# Comandos de exemplo (válidos)
--Constantes
-pi
-e
-
--Potencia e logaritmo
-pow 2 8
-log 100
-log10 1000
-exp 2
-
--Trigonometria e Conversão
-sin 1.57
-cos 3.14
-degrees 1.5708
-radians 90
-
--Funções hiperbolicas
-sinh 1
-cosh 0
-
--Arredondamento e valor
-trunc 3.99
-factorial 5
-
--Funções númericas
-gcd 54 24
-comb 5 2
-
--Checagem de tipos
-isfinite 999
-isinf inf
-isnan nan
-"""
-        )
-        self.codigo_area.pack(fill="both", expand=True, padx=10, pady=5)
+        # PAINEL DE CONTROLE SUPERIOR
+        control_frame = ttk.Frame(root)
+        control_frame.pack(fill="x", padx=10, pady=5)
         
-        botoes_frame = ttk.Frame(root)
-        botoes_frame.pack(pady=5)
-
-        self.executar_btn = ttk.Button(botoes_frame, text="Executar", command=self.iniciar_execucao)
+        self.executar_btn = ttk.Button(control_frame, text="Executar", command=self.iniciar_execucao)
         self.executar_btn.pack(side="left", padx=5)
 
-        self.voltar_btn = ttk.Button(botoes_frame, text="Voltar", command=self.voltar_para_inicio)
+        self.voltar_btn = ttk.Button(control_frame, text="Voltar", command=self.voltar_para_inicio)
         self.voltar_btn.pack(side="left", padx=5)
+        
+        self.limpar_btn = ttk.Button(control_frame, text="Limpar Tudo", command=self.limpar_tudo)
+        self.limpar_btn.pack(side="left", padx=5)
 
-        self.saida_area = tk.Text(root, height=18, state="disabled", bg="#f0f0f0", font=("Consolas", 10))
-        self.saida_area.pack(fill="both", expand=True, padx=10, pady=5)
+        # LAYOUT LADO A LADO COM DIVISÓRIA AJUSTÁVEL
+        paned_window = ttk.PanedWindow(root, orient=tk.HORIZONTAL)
+        paned_window.pack(fill="both", expand=True, padx=10, pady=5)
+
+        # Painel da Esquerda (Código)
+        codigo_frame = ttk.Frame(paned_window, width=400, height=500)
+        ttk.Label(codigo_frame, text="Código Fonte").pack(anchor="w", padx=5, pady=(0,2))
+        self.codigo_area = TextWithLineNumbers(codigo_frame)
+        self.codigo_area.pack(fill="both", expand=True)
+        paned_window.add(codigo_frame, weight=1) # Define o peso inicial para o painel de código
+        
+        # Painel da Direita (Saída)
+        saida_frame = ttk.Frame(paned_window, width=400, height=500)
+        ttk.Label(saida_frame, text="Saída").pack(anchor="w", padx=5, pady=(0,2))
+        self.saida_area = tk.Text(saida_frame, state="disabled", bg="#2b2b2b", fg="#d0d0d0", font=("Consolas", 11), wrap="word", borderwidth=0)
+        self.saida_area.pack(fill="both", expand=True)
+        paned_window.add(saida_frame, weight=2) # Define o peso inicial (maior) para o painel de saída
+        
+        self.saida_area.tag_config("sucesso", foreground="#4CAF50") # Verde
+        self.saida_area.tag_config("erro", foreground="#F44336")   # Vermelho
+        self.saida_area.tag_config("info", foreground="#2196F3")   # Azul
+
+        # TEXTO DE EXEMPLO PRESERVADO
+        self.codigo_area.insert("1.0",
+"""# Comandos de exemplo (válidos)
+-Constantes (4 comandos)
+pi 
+e   
+inf
+nan
+
+-Potência e Logaritmo (7 comandos)
+sqrt 
+pow  
+exp  
+log  
+log10
+log2 
+
+-Trigonometria e Conversão (8 comandos)
+sin    
+cos    
+tan    
+asin   
+acos   
+atan   
+degrees
+radians
+
+-Funções Hiperbólicas (3 comandos)
+sinh 
+cosh 
+tanh 
+
+-Arredondamento e Manipulação (4 comandos)
+ceil 
+floor
+fabs 
+trunc 
+
+-Combinatória e Teoria dos Números (5 comandos)
+factorial
+gcd      
+lcm      
+comb     
+perm     
+
+-Checagem de Ponto Flutuante (3 comandos)
+isfinite 
+isinf    
+isnan    
+"""
+        )
+    
+    def limpar_tudo(self):
+        self.codigo_area.delete("1.0", tk.END)
+        self.saida_area.config(state="normal")
+        self.saida_area.delete("1.0", tk.END)
+        self.saida_area.config(state="disabled")
 
     def voltar_para_inicio(self):
         self.root.destroy()
@@ -96,7 +173,7 @@ isnan nan
             logo_img = logo_img.resize((80, 80))
             logo_photo = ImageTk.PhotoImage(logo_img)
             
-            logo_label = ttk.Label(loading_window, image=logo_photo)
+            logo_label = ttk.Label(loading_window, image=logo_photo, background=loading_window.cget('bg'))
             logo_label.image = logo_photo 
             logo_label.pack(pady=10)
             
@@ -108,6 +185,7 @@ isnan nan
 
         self.executar_btn.config(state="disabled")
         self.voltar_btn.config(state="disabled")
+        self.limpar_btn.config(state="disabled")
         self.root.update_idletasks()
         self.root.after(200, self.processar_codigo, loading_window)
 
@@ -126,143 +204,138 @@ isnan nan
 
             try:
                 if cmd == "print":
-                    self.saida_area.insert(tk.END, " ".join(partes[1:]) + "\n")
+                    self.saida_area.insert(tk.END, " ".join(partes[1:]) + "\n", "info")
                 elif cmd == "msg":
                     messagebox.showinfo("Mensagem", " ".join(partes[1:]), parent=self.root)
-
+                    self.saida_area.insert(tk.END, "Mensagem exibida\n", "info")
                 elif cmd == "pi":
-                    self.saida_area.insert(tk.END, f"{math.pi}\n")
+                    self.saida_area.insert(tk.END, f"{math.pi}\n", "sucesso")
                 elif cmd == "e":
-                    self.saida_area.insert(tk.END, f"{math.e}\n")
+                    self.saida_area.insert(tk.END, f"{math.e}\n", "sucesso")
                 elif cmd == "inf":
-                    self.saida_area.insert(tk.END, f"{math.inf}\n")
+                    self.saida_area.insert(tk.END, f"{math.inf}\n", "sucesso")
                 elif cmd == "nan":
-                    self.saida_area.insert(tk.END, f"{math.nan}\n")
-
+                    self.saida_area.insert(tk.END, f"{math.nan}\n", "sucesso")
                 elif cmd == "sqrt":
                     x = float(partes[1])
-                    self.saida_area.insert(tk.END, f"{math.sqrt(x)}\n")
+                    self.saida_area.insert(tk.END, f"{math.sqrt(x)}\n", "sucesso")
                 elif cmd == "cbrt":
                     x = float(partes[1])
-                    self.saida_area.insert(tk.END, f"{x ** (1/3)}\n")
+                    self.saida_area.insert(tk.END, f"{x ** (1/3)}\n", "sucesso")
                 elif cmd == "pow":
                     x, y = float(partes[1]), float(partes[2])
-                    self.saida_area.insert(tk.END, f"{math.pow(x, y)}\n")
+                    self.saida_area.insert(tk.END, f"{math.pow(x, y)}\n", "sucesso")
                 elif cmd == "exp":
                     x = float(partes[1])
-                    self.saida_area.insert(tk.END, f"{math.exp(x)}\n")
+                    self.saida_area.insert(tk.END, f"{math.exp(x)}\n", "sucesso")
                 elif cmd == "log":
                     x = float(partes[1])
-                    self.saida_area.insert(tk.END, f"{math.log(x)}\n")
+                    self.saida_area.insert(tk.END, f"{math.log(x)}\n", "sucesso")
                 elif cmd == "log10":
                     x = float(partes[1])
-                    self.saida_area.insert(tk.END, f"{math.log10(x)}\n")
+                    self.saida_area.insert(tk.END, f"{math.log10(x)}\n", "sucesso")
                 elif cmd == "log2":
                     x = float(partes[1])
-                    self.saida_area.insert(tk.END, f"{math.log2(x)}\n")
-                
+                    self.saida_area.insert(tk.END, f"{math.log2(x)}\n", "sucesso")
                 elif cmd == "sin":
                     x = float(partes[1])
-                    self.saida_area.insert(tk.END, f"{math.sin(x)}\n")
+                    self.saida_area.insert(tk.END, f"{math.sin(x)}\n", "sucesso")
                 elif cmd == "cos":
                     x = float(partes[1])
-                    self.saida_area.insert(tk.END, f"{math.cos(x)}\n")
+                    self.saida_area.insert(tk.END, f"{math.cos(x)}\n", "sucesso")
                 elif cmd == "tan":
                     x = float(partes[1])
-                    self.saida_area.insert(tk.END, f"{math.tan(x)}\n")
+                    self.saida_area.insert(tk.END, f"{math.tan(x)}\n", "sucesso")
                 elif cmd == "asin":
                     x = float(partes[1])
-                    self.saida_area.insert(tk.END, f"{math.asin(x)}\n")
+                    self.saida_area.insert(tk.END, f"{math.asin(x)}\n", "sucesso")
                 elif cmd == "acos":
                     x = float(partes[1])
-                    self.saida_area.insert(tk.END, f"{math.acos(x)}\n")
+                    self.saida_area.insert(tk.END, f"{math.acos(x)}\n", "sucesso")
                 elif cmd == "atan":
                     x = float(partes[1])
-                    self.saida_area.insert(tk.END, f"{math.atan(x)}\n")
-
+                    self.saida_area.insert(tk.END, f"{math.atan(x)}\n", "sucesso")
                 elif cmd == "degrees":
                     x = float(partes[1])
-                    self.saida_area.insert(tk.END, f"{math.degrees(x)}\n")
+                    self.saida_area.insert(tk.END, f"{math.degrees(x)}\n", "sucesso")
                 elif cmd == "radians":
                     x = float(partes[1])
-                    self.saida_area.insert(tk.END, f"{math.radians(x)}\n")
-
+                    self.saida_area.insert(tk.END, f"{math.radians(x)}\n", "sucesso")
                 elif cmd == "sinh":
                     x = float(partes[1])
-                    self.saida_area.insert(tk.END, f"{math.sinh(x)}\n")
+                    self.saida_area.insert(tk.END, f"{math.sinh(x)}\n", "sucesso")
                 elif cmd == "cosh":
                     x = float(partes[1])
-                    self.saida_area.insert(tk.END, f"{math.cosh(x)}\n")
+                    self.saida_area.insert(tk.END, f"{math.cosh(x)}\n", "sucesso")
                 elif cmd == "tanh":
                     x = float(partes[1])
-                    self.saida_area.insert(tk.END, f"{math.tanh(x)}\n")
-
+                    self.saida_area.insert(tk.END, f"{math.tanh(x)}\n", "sucesso")
                 elif cmd == "ceil":
                     x = float(partes[1])
-                    self.saida_area.insert(tk.END, f"{math.ceil(x)}\n")
+                    self.saida_area.insert(tk.END, f"{math.ceil(x)}\n", "sucesso")
                 elif cmd == "floor":
                     x = float(partes[1])
-                    self.saida_area.insert(tk.END, f"{math.floor(x)}\n")
+                    self.saida_area.insert(tk.END, f"{math.floor(x)}\n", "sucesso")
                 elif cmd == "fabs":
                     x = float(partes[1])
-                    self.saida_area.insert(tk.END, f"{math.fabs(x)}\n")
+                    self.saida_area.insert(tk.END, f"{math.fabs(x)}\n", "sucesso")
                 elif cmd == "trunc":
                     x = float(partes[1])
-                    self.saida_area.insert(tk.END, f"{math.trunc(x)}\n")
-
+                    self.saida_area.insert(tk.END, f"{math.trunc(x)}\n", "sucesso")
                 elif cmd == "factorial":
                     x = int(partes[1])
-                    self.saida_area.insert(tk.END, f"{math.factorial(x)}\n")
+                    self.saida_area.insert(tk.END, f"{math.factorial(x)}\n", "sucesso")
                 elif cmd == "gcd":
                     x, y = int(partes[1]), int(partes[2])
-                    self.saida_area.insert(tk.END, f"{math.gcd(x, y)}\n")
+                    self.saida_area.insert(tk.END, f"{math.gcd(x, y)}\n", "sucesso")
                 elif cmd == "lcm":
                     x, y = int(partes[1]), int(partes[2])
-                    self.saida_area.insert(tk.END, f"{math.lcm(x, y)}\n")
+                    self.saida_area.insert(tk.END, f"{math.lcm(x, y)}\n", "sucesso")
                 elif cmd == "comb":
                     n, k = int(partes[1]), int(partes[2])
-                    self.saida_area.insert(tk.END, f"{math.comb(n, k)}\n")
+                    self.saida_area.insert(tk.END, f"{math.comb(n, k)}\n", "sucesso")
                 elif cmd == "perm":
                     n, k = int(partes[1]), int(partes[2])
-                    self.saida_area.insert(tk.END, f"{math.perm(n, k)}\n")
-
+                    self.saida_area.insert(tk.END, f"{math.perm(n, k)}\n", "sucesso")
                 elif cmd == "isfinite":
                     x = float(partes[1])
-                    self.saida_area.insert(tk.END, f"{math.isfinite(x)}\n")
+                    self.saida_area.insert(tk.END, f"{math.isfinite(x)}\n", "sucesso")
                 elif cmd == "isinf":
                     x = float(partes[1])
-                    self.saida_area.insert(tk.END, f"{math.isinf(x)}\n")
+                    self.saida_area.insert(tk.END, f"{math.isinf(x)}\n", "sucesso")
                 elif cmd == "isnan":
                     x = float(partes[1])
-                    self.saida_area.insert(tk.END, f"{math.isnan(x)}\n")
-
+                    self.saida_area.insert(tk.END, f"{math.isnan(x)}\n", "sucesso")
                 elif cmd == "max":
                     nums = [float(n) for n in partes[1:]]
-                    self.saida_area.insert(tk.END, f"{max(nums)}\n")
+                    self.saida_area.insert(tk.END, f"{max(nums)}\n", "sucesso")
                 elif cmd == "min":
                     nums = [float(n) for n in partes[1:]]
-                    self.saida_area.insert(tk.END, f"{min(nums)}\n")
-                
+                    self.saida_area.insert(tk.END, f"{min(nums)}\n", "sucesso")
                 else:
-                    self.saida_area.insert(tk.END, f"Comando não reconhecido: {linha}\n")
+                    self.saida_area.insert(tk.END, f"Comando não reconhecido: {linha}\n", "erro")
+            except IndexError:
+                self.saida_area.insert(tk.END, f"Erro em '{linha}': Argumento(s) ausente(s).\n", "erro")
+            except ValueError:
+                self.saida_area.insert(tk.END, f"Erro em '{linha}': Argumento inválido. Verifique se os números estão corretos.\n", "erro")
             except Exception as e:
-                self.saida_area.insert(tk.END, f"Erro ao executar '{linha}': {e}\n")
-        
-        num_linhas = int(self.saida_area.index('end-1c').split('.')[0])
-        altura_final = max(1, min(num_linhas, 20))
-        self.saida_area.config(height=altura_final)
+                self.saida_area.insert(tk.END, f"Erro ao executar '{linha}': {e}\n", "erro")
         
         self.saida_area.config(state="disabled")
         self.executar_btn.config(state="normal")
         self.voltar_btn.config(state="normal")
+        self.limpar_btn.config(state="normal")
         loading_window.destroy()
 
 class TelaBoasVindas:
-    def __init__(self, root):
+    def __init__(self, root, icon_photo=None):
         self.root = root
+        self.icon_photo = icon_photo
         self.root.title("Boas-Vindas ao Compilo Python")
         self.root.geometry("700x500")
         self.root.resizable(True, True) 
+        if self.icon_photo:
+            self.root.iconphoto(False, self.icon_photo)
         
         style = ttk.Style()
         style.configure("TButton", font=("Arial", 12), padding=10)
@@ -312,11 +385,20 @@ class TelaBoasVindas:
     def avancar_para_compilador(self):
         self.root.withdraw()
         compilador_window = tk.Toplevel(self.root)
-        app_compilador = MiniCompilador(compilador_window, self.root)
+        app_compilador = MiniCompilador(compilador_window, self.root, self.icon_photo)
         compilador_window.protocol("WM_DELETE_WINDOW", self.root.destroy)
 
 if __name__ == "__main__":
     main_root = tk.Tk()
-    app = TelaBoasVindas(main_root)
+    
+    app_icon = None
+    try:
+        icon_image = Image.open("assets/imagen_logo.png")
+        app_icon = ImageTk.PhotoImage(icon_image)
+        main_root.iconphoto(False, app_icon)
+    except Exception as e:
+        print(f"Erro ao carregar o ícone da janela: {e}")
+    
+    app = TelaBoasVindas(main_root, app_icon)
     main_root.mainloop()
 
