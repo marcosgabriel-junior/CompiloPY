@@ -1,28 +1,53 @@
 import sys
 import os
 
-# Este bloco de código adiciona a pasta 'libs' ao caminho de busca para verificar as bibliotecas e salvar essa droga.
+# Este bloco é essencial para carregar as bibliotecas da sua pasta 'libs'
 script_dir = os.path.dirname(os.path.abspath(__file__))
 libs_dir = os.path.join(script_dir, 'libs')
 sys.path.insert(0, libs_dir)
 
 import tkinter as tk
-from tkinter import ttk, messagebox
-import math
-from PIL import Image, ImageTk
+from tkinter import messagebox, filedialog 
+import ttkbootstrap as ttk
+from ttkbootstrap.constants import *
 
-# --- TEXTO COM NÚMEROS DE LINHA ---
-class TextWithLineNumbers(tk.Frame):
+import math
+# A importação do PIL/ImageTk foi removida pois a imagem não é mais usada
+
+class TextWithLineNumbers(ttk.Frame):
     def __init__(self, *args, **kwargs):
-        tk.Frame.__init__(self, *args, **kwargs)
+        ttk.Frame.__init__(self, *args, **kwargs) 
+        
         self.text = tk.Text(self, font=("Consolas", 11), wrap="word", borderwidth=0, highlightthickness=0)
-        self.linenumbers = tk.Canvas(self, width=40, bg='#f0f0f0', borderwidth=0, highlightthickness=0)
+        self.linenumbers = tk.Canvas(self, width=40, borderwidth=0, highlightthickness=0)
         
         self.linenumbers.pack(side="left", fill="y")
         self.text.pack(side="right", fill="both", expand=True)
         
         self.text.bind("<<Modified>>", self._on_text_modify)
         self.text.bind("<Configure>", self._on_text_modify)
+        
+        try:
+            style = ttk.Style()
+            # Cor do texto do editor (ex: cinza claro em tema escuro)
+            text_fg_color = style.lookup("TLabel", "foreground", ("secondary",))
+            # Cor de fundo principal do tema
+            bg_color = style.lookup("TFrame", "background") 
+            
+            # --- CORREÇÃO DO BUG AQUI ---
+            # Aplicar a cor da variável, não a string "secondary"
+            self.text.config(fg=text_fg_color, bg=bg_color) 
+            # --- FIM DA CORREÇÃO ---
+            
+            self.linenumbers.config(bg=bg_color)
+            
+            self.ln_fg_color = "#000000"
+        except:
+            # Fallback
+            self.text.config(fg="#606060", bg="#ffffff")
+            self.linenumbers.config(bg="#f0f0f0")
+            self.ln_fg_color = "#000000"
+
 
     def _on_text_modify(self, event=None):
         self.linenumbers.delete("all")
@@ -32,7 +57,7 @@ class TextWithLineNumbers(tk.Frame):
             if dline is None: break
             y = dline[1]
             linenum = str(i).split(".")[0]
-            self.linenumbers.create_text(2, y, anchor="nw", text=linenum, fill="#606060", font=("Consolas", 11))
+            self.linenumbers.create_text(2, y, anchor="nw", text=linenum, fill=self.ln_fg_color, font=("Consolas", 11))
             i = self.text.index("%s+1line" % i)
         self.text.edit_modified(False)
 
@@ -46,53 +71,64 @@ class TextWithLineNumbers(tk.Frame):
         self.text.delete(*args, **kwargs)
 
 class MiniCompilador:
-    def __init__(self, root, janela_principal, icon_photo):
+    # Removido 'icon_photo'
+    def __init__(self, root, janela_principal):
         self.root = root
         self.janela_principal = janela_principal
         self.root.title("Compilo Python - Interpretador")
-        # ALTERADO: Aumentei a largura da janela
         self.root.geometry("1100x600")
-        self.root.configure(bg="#e0e0e0")
-        if icon_photo:
-            self.root.iconphoto(False, icon_photo)
 
-        # PAINEL DE CONTROLE SUPERIOR
-        control_frame = ttk.Frame(root)
-        control_frame.pack(fill="x", padx=10, pady=5)
+        top_bar_frame = ttk.Frame(root, padding=(10, 10))
+        top_bar_frame.pack(fill="x")
         
-        self.executar_btn = ttk.Button(control_frame, text="Executar", command=self.iniciar_execucao)
+        button_container = ttk.Frame(top_bar_frame)
+        button_container.pack() 
+
+        btn_width = 12 
+        
+        self.abrir_btn = ttk.Button(button_container, text="Abrir", command=self.abrir_arquivo, bootstyle="info-outline", width=btn_width)
+        self.abrir_btn.pack(side="left", padx=5)
+
+        self.salvar_btn = ttk.Button(button_container, text="Salvar", command=self.salvar_arquivo, bootstyle="info-outline", width=btn_width)
+        self.salvar_btn.pack(side="left", padx=5)
+
+        self.executar_btn = ttk.Button(button_container, text="Executar", command=self.iniciar_execucao, bootstyle="success-outline", width=btn_width)
         self.executar_btn.pack(side="left", padx=5)
 
-        self.voltar_btn = ttk.Button(control_frame, text="Voltar", command=self.voltar_para_inicio)
+        self.voltar_btn = ttk.Button(button_container, text="Voltar", command=self.voltar_para_inicio, bootstyle="secondary-outline", width=btn_width)
         self.voltar_btn.pack(side="left", padx=5)
         
-        self.limpar_btn = ttk.Button(control_frame, text="Limpar Tudo", command=self.limpar_tudo)
+        self.limpar_btn = ttk.Button(button_container, text="Limpar Tudo", command=self.limpar_tudo, bootstyle="danger-outline", width=btn_width)
         self.limpar_btn.pack(side="left", padx=5)
 
-        # LAYOUT LADO A LADO COM DIVISÓRIA AJUSTÁVEL
         paned_window = ttk.PanedWindow(root, orient=tk.HORIZONTAL)
-        paned_window.pack(fill="both", expand=True, padx=10, pady=5)
+        paned_window.pack(fill="both", expand=True, padx=10, pady=(0, 10))
 
-        # Painel da Esquerda (Código)
-        codigo_frame = ttk.Frame(paned_window, width=400, height=500)
-        ttk.Label(codigo_frame, text="Código Fonte").pack(anchor="w", padx=5, pady=(0,2))
+        codigo_frame = ttk.Frame(paned_window, width=400, height=500, padding=5)
+        ttk.Label(codigo_frame, text="Código Fonte").pack(anchor="w", padx=5, pady=(0,5))
         self.codigo_area = TextWithLineNumbers(codigo_frame)
         self.codigo_area.pack(fill="both", expand=True)
         paned_window.add(codigo_frame, weight=1) 
         
-        # Painel da Direita (Saída)
-        saida_frame = ttk.Frame(paned_window, width=400, height=600)
-        ttk.Label(saida_frame, text="Saída").pack(anchor="w", padx=5, pady=(0,2))
-        self.saida_area = tk.Text(saida_frame, state="disabled", bg="#2b2b2b", fg="#d0d0d0", font=("Consolas", 11), wrap="word", borderwidth=0)
-        self.saida_area.pack(fill="both", expand=True)
-        # ALTERADO: Aumentei o peso para dar ainda mais espaço inicial à saída
-        paned_window.add(saida_frame, weight=0) 
+        saida_frame = ttk.Frame(paned_window, width=400, height=600, padding=5)
+        ttk.Label(saida_frame, text="Saída").pack(anchor="w", padx=5, pady=(0,5))
         
-        self.saida_area.tag_config("sucesso", foreground="#4CAF50") 
-        self.saida_area.tag_config("erro", foreground="#F44336") 
-        self.saida_area.tag_config("info", foreground="#2196F3")   
+        self.saida_area = tk.Text(saida_frame, state="disabled", font=("Consolas", 11), wrap="word", borderwidth=0)
+        
+        try:
+            style = ttk.Style()
+            bg_color = style.lookup("TFrame", "background")
+            self.saida_area.config(bg=bg_color)
+        except:
+            self.saida_area.config(bg="#f0f0f0")
+            
+        self.saida_area.pack(fill="both", expand=True)
+        paned_window.add(saida_frame, weight=1)
+        
+        self.saida_area.tag_config("sucesso", foreground="#4CAF50")
+        self.saida_area.tag_config("erro", foreground="#F44336")
+        self.saida_area.tag_config("info", foreground="#2196F3")
 
-        # TEXTO DE EXEMPLo
         self.codigo_area.insert("1.0",
 """# Comandos de exemplo (válidos)
 -Constantes (4 comandos)
@@ -144,6 +180,39 @@ isnan
 """
         )
     
+    def abrir_arquivo(self):
+        filepath = filedialog.askopenfilename(
+            title="Abrir arquivo",
+            filetypes=[("Arquivos Python", "*.py"), ("Todos os arquivos", "*.*")]
+        )
+        if not filepath:
+            return
+        
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                content = f.read()
+            self.codigo_area.delete("1.0", tk.END)
+            self.codigo_area.insert("1.0", content)
+        except Exception as e:
+            messagebox.showerror("Erro ao Abrir", f"Não foi possível ler o arquivo:\n{e}", parent=self.root)
+
+    def salvar_arquivo(self):
+        filepath = filedialog.asksaveasfilename(
+            title="Salvar arquivo como",
+            defaultextension=".py",
+            filetypes=[("Arquivos Python", "*.py"), ("Todos os arquivos", "*.*")]
+        )
+        if not filepath:
+            return
+            
+        try:
+            content = self.codigo_area.get("1.0", tk.END)
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write(content)
+            messagebox.showinfo("Sucesso", f"Arquivo salvo em:\n{filepath}", parent=self.root)
+        except Exception as e:
+            messagebox.showerror("Erro ao Salvar", f"Não foi possível salvar o arquivo:\n{e}", parent=self.root)
+
     def limpar_tudo(self):
         self.codigo_area.delete("1.0", tk.END)
         self.saida_area.config(state="normal")
@@ -170,24 +239,13 @@ isnan
         pos_y = root_y + (root_height // 2) - (150 // 2)
         loading_window.geometry(f"+{pos_x}+{pos_y}")
 
-        try:
-            logo_img = Image.open("assets/imagen_logo.png")
-            logo_img = logo_img.resize((80, 80))
-            logo_photo = ImageTk.PhotoImage(logo_img)
-            
-            logo_label = ttk.Label(loading_window, image=logo_photo, background=loading_window.cget('bg'))
-            logo_label.image = logo_photo 
-            logo_label.pack(pady=10)
-            
-            ttk.Label(loading_window, text="Executando...", font=("Arial", 10)).pack()
-
-        except Exception as e:
-            print(f"Erro ao carregar imagem de execução: {e}")
-            ttk.Label(loading_window, text="Executando código...", font=("Arial", 14)).pack(expand=True)
+        ttk.Label(loading_window, text="Executando código...", font=("Arial", 14)).pack(expand=True, pady=20)
 
         self.executar_btn.config(state="disabled")
         self.voltar_btn.config(state="disabled")
         self.limpar_btn.config(state="disabled")
+        self.abrir_btn.config(state="disabled")
+        self.salvar_btn.config(state="disabled")
         self.root.update_idletasks()
         self.root.after(200, self.processar_codigo, loading_window)
 
@@ -328,26 +386,24 @@ isnan
         self.executar_btn.config(state="normal")
         self.voltar_btn.config(state="normal")
         self.limpar_btn.config(state="normal")
+        self.abrir_btn.config(state="normal")
+        self.salvar_btn.config(state="normal")
         loading_window.destroy()
 
 class TelaBoasVindas:
-    def __init__(self, root, icon_photo=None):
+    def __init__(self, root):
         self.root = root
-        self.icon_photo = icon_photo
         self.root.title("Boas-Vindas ao Compilo Python")
-        self.root.geometry("700x500")
+        self.root.geometry("700x550")
         self.root.resizable(True, True) 
-        if self.icon_photo:
-            self.root.iconphoto(False, self.icon_photo)
         
         style = ttk.Style()
         style.configure("TButton", font=("Arial", 12), padding=10)
-        style.configure("TLabel", font=("Arial", 12))
 
         top_frame = ttk.Frame(root)
-        top_frame.pack(side="top", fill="x", pady=10, padx=10)
+        top_frame.pack(side="top", fill="x", pady=20, padx=10)
 
-        title_label = ttk.Label(top_frame, text="Bem-vindo ao Compilo Python!", font=("Arial", 18, "bold"))
+        title_label = ttk.Label(top_frame, text="Bem-vindo ao Compilo Python!", font=("Arial", 18, "bold"), bootstyle="primary")
         title_label.pack(pady=5)
 
         self.content_frame = ttk.Frame(root)
@@ -362,13 +418,13 @@ class TelaBoasVindas:
         self.welcome_label = ttk.Label(self.content_frame, text=welcome_text, justify="center", font=("Arial", 14), anchor="center")
         self.welcome_label.pack(pady=20, fill="x", expand=True)
 
-        explicacao_btn = ttk.Button(self.content_frame, text="Sobre o Compilador", command=self.mostrar_explicacao)
+        explicacao_btn = ttk.Button(self.content_frame, text="Sobre o Compilador", command=self.mostrar_explicacao, bootstyle="info-outline")
         explicacao_btn.pack(pady=10)
 
-        avancar_btn = ttk.Button(self.content_frame, text="Avançar para o Compilador", command=self.avancar_para_compilador)
+        avancar_btn = ttk.Button(self.content_frame, text="Avançar para o Compilador", command=self.avancar_para_compilador, bootstyle="success")
         avancar_btn.pack(pady=10)
 
-        footer_label = ttk.Label(root, text="Integrantes: Aaron, Walisson, Jonathan, Marcos e Victor", font=("Arial", 10))
+        footer_label = ttk.Label(root, text="Integrantes: Aaron, Walisson, Jonathan, Marcos e Victor", font=("Arial", 10), bootstyle="secondary")
         footer_label.pack(side="bottom", pady=10)
 
         self.content_frame.bind('<Configure>', self._on_resize)
@@ -388,20 +444,11 @@ class TelaBoasVindas:
     def avancar_para_compilador(self):
         self.root.withdraw()
         compilador_window = tk.Toplevel(self.root)
-        app_compilador = MiniCompilador(compilador_window, self.root, self.icon_photo)
+        app_compilador = MiniCompilador(compilador_window, self.root)
         compilador_window.protocol("WM_DELETE_WINDOW", self.root.destroy)
 
 if __name__ == "__main__":
-    main_root = tk.Tk()
+    main_root = ttk.Window(themename="superhero")
     
-    app_icon = None
-    try:
-        icon_image = Image.open("assets/imagen_logo.png")
-        app_icon = ImageTk.PhotoImage(icon_image)
-        main_root.iconphoto(False, app_icon)
-    except Exception as e:
-        print(f"Erro ao carregar o ícone da janela: {e}")
-    
-    app = TelaBoasVindas(main_root, app_icon)
+    app = TelaBoasVindas(main_root)
     main_root.mainloop()
-
