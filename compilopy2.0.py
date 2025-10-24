@@ -1,49 +1,33 @@
 import sys
 import os
-
-# Este bloco é essencial para carregar as bibliotecas da sua pasta 'libs'
 script_dir = os.path.dirname(os.path.abspath(__file__))
 libs_dir = os.path.join(script_dir, 'libs')
 sys.path.insert(0, libs_dir)
-
 import tkinter as tk
 from tkinter import messagebox, filedialog 
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
-
 import math
-# A importação do PIL/ImageTk foi removida pois a imagem não é mais usada
-
 class TextWithLineNumbers(ttk.Frame):
     def __init__(self, *args, **kwargs):
         ttk.Frame.__init__(self, *args, **kwargs) 
-        
         self.text = tk.Text(self, font=("Consolas", 11), wrap="word", borderwidth=0, highlightthickness=0)
         self.linenumbers = tk.Canvas(self, width=40, borderwidth=0, highlightthickness=0)
-        
         self.linenumbers.pack(side="left", fill="y")
         self.text.pack(side="right", fill="both", expand=True)
-        
         self.text.bind("<<Modified>>", self._on_text_modify)
         self.text.bind("<Configure>", self._on_text_modify)
-        
         try:
             style = ttk.Style()
-            # Cor do texto do editor (ex: cinza claro em tema escuro)
             text_fg_color = style.lookup("TLabel", "foreground", ("secondary",))
-            # Cor de fundo principal do tema
             bg_color = style.lookup("TFrame", "background") 
             
-            # --- CORREÇÃO DO BUG AQUI ---
-            # Aplicar a cor da variável, não a string "secondary"
             self.text.config(fg=text_fg_color, bg=bg_color) 
-            # --- FIM DA CORREÇÃO ---
             
             self.linenumbers.config(bg=bg_color)
             
             self.ln_fg_color = "#000000"
         except:
-            # Fallback
             self.text.config(fg="#606060", bg="#ffffff")
             self.linenumbers.config(bg="#f0f0f0")
             self.ln_fg_color = "#000000"
@@ -71,7 +55,6 @@ class TextWithLineNumbers(ttk.Frame):
         self.text.delete(*args, **kwargs)
 
 class MiniCompilador:
-    # Removido 'icon_photo'
     def __init__(self, root, janela_principal):
         self.root = root
         self.janela_principal = janela_principal
@@ -252,17 +235,24 @@ isnan
     def processar_codigo(self, loading_window):
         self.saida_area.config(state="normal")
         self.saida_area.delete("1.0", tk.END)
+        
+        # --- INÍCIO: Leitura e Validação ---
         linhas = self.codigo_area.get("1.0", tk.END).strip().split("\n")
 
         for linha in linhas:
             linha = linha.strip()
+            
             if not linha or linha.startswith("-") or linha.startswith("#"):
                 continue
+            # --- FIM: Leitura e Validação ---
 
+            # --- INÍCIO: Análise Léxica / Tokenização ---
             partes = linha.split()
             cmd = partes[0]
+            # --- FIM: Análise Léxica / Tokenização ---
 
             try:
+                # --- INÍCIO: Análise Sintática e Execução ---
                 if cmd == "print":
                     self.saida_area.insert(tk.END, " ".join(partes[1:]) + "\n", "info")
                 elif cmd == "msg":
@@ -374,13 +364,16 @@ isnan
                     self.saida_area.insert(tk.END, f"{min(nums)}\n", "sucesso")
                 else:
                     self.saida_area.insert(tk.END, f"Comando não reconhecido: {linha}\n", "erro")
+                # --- FIM: Análise Sintática e Execução ---
             
+            # --- INÍCIO: Tratamento de Erros ---
             except IndexError:
                 self.saida_area.insert(tk.END, f"Erro em '{linha}': Por favor, insira o(s) valor(es) para o comando.\n", "erro")
             except ValueError:
                 self.saida_area.insert(tk.END, f"Erro em '{linha}': Argumento inválido. Verifique se os números estão corretos.\n", "erro")
             except Exception as e:
                 self.saida_area.insert(tk.END, f"Erro ao executar '{linha}': {e}\n", "erro")
+            # --- FIM: Tratamento de Erros ---
         
         self.saida_area.config(state="disabled")
         self.executar_btn.config(state="normal")
